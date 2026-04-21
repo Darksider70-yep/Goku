@@ -8,6 +8,7 @@
     "type": "git",
     "url": "https://github.com/Darksider70-yep/Goku"
   },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.116.0"
   },
