@@ -1,0 +1,81 @@
+{
+  "name": "goku-kamehameha",
+  "displayName": "Goku Kamehameha",
+  "description": "🐉 Goku fires a Kamehameha across your editor every time your code runs successfully!",
+  "version": "1.0.0",
+  "publisher": "daksh-gehlot",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "goku",
+    "kamehameha",
+    "dragon ball",
+    "animation",
+    "fun"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "goku.triggerKamehameha",
+        "title": "🐉 Trigger Goku Kamehameha!"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "goku.triggerKamehameha",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k"
+      }
+    ],
+    "configuration": {
+      "title": "Goku Kamehameha",
+      "properties": {
+        "goku.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Kamehameha animation"
+        },
+        "goku.animationDuration": {
+          "type": "number",
+          "default": 4500,
+          "description": "Animation duration in milliseconds"
+        },
+        "goku.soundEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable Kamehameha sound effects"
+        },
+        "goku.triggerOnTask": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trigger animation when a task completes successfully"
+        },
+        "goku.triggerOnDebug": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trigger animation when a debug session ends"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "package": "npx -y @vscode/vsce package --no-dependencies",
+    "lint": "echo 'no linter configured'"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/vscode": "^1.116.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}
