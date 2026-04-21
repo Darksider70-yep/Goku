@@ -4,8 +4,12 @@
   "description": "🐉 Goku fires a Kamehameha across your editor every time your code runs successfully!",
   "version": "1.0.0",
   "publisher": "daksh-gehlot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Darksider70-yep/Goku"
+  },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.116.0"
   },
   "categories": [
     "Other"
