@@ -127,7 +127,7 @@ const BEAM_START_OFFSET = { x: 58, y: -2 };
 const PARTICLE_CONFIG = {
   aura: { maxPerFrame: 5, decay: { min: 0.01, max: 0.02 } },
   beam: { spawnChance: 0.5, decay: { min: 0.02, max: 0.03 } },
-  leaf: { spawnPerFrame: 3, decay: { min: 0.008, max: 0.015 }, lifetime: 8 }
+  leaf: { max: 180, spawnPerFrame: 3, decay: { min: 0.006, max: 0.011 } }
 };
 
 // ========================================
@@ -143,7 +143,7 @@ if (!ctx) {
 
 const flash = document.getElementById('flash');
 const textEl = document.getElementById('text-overlay');
-let W, H, startTime;
+let W, H, startTime, previousFrameTime;
 let shakeX = 0, shakeY = 0;
 const particles = [];
 const beamParticles = [];
@@ -260,29 +260,35 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.translate(x, y);
   ctx.scale(scale, scale);
 
+  const superSaiyan = Math.min(Math.max(phase, 0), 1);
+  const attacking = phase >= 2;
+
   // Color palette
   const bodyColor = '#F4A460';
   const giTop = '#FF6B00';
   const giBottom = '#FF6B00';
   const giBelt = '#0047AB';
-  const hair = phase >= 1 ? '#FFD700' : '#1a1a1a';
-  const hairGlow = phase >= 1 ? 'rgba(255,215,0,0.4)' : 'rgba(0,0,0,0)';
+  const hairRed = Math.round(26 + (255 - 26) * superSaiyan);
+  const hairGreen = Math.round(26 + (215 - 26) * superSaiyan);
+  const hairBlue = Math.round(26 * (1 - superSaiyan));
+  const hair = 'rgb(' + hairRed + ',' + hairGreen + ',' + hairBlue + ')';
+  const hairLift = superSaiyan * 15;
 
-  // Super Saiyan hair glow
-  if (phase >= 1) {
+  // Golden Super Saiyan hair grows taller as the transformation completes.
+  if (superSaiyan > 0.02) {
     ctx.shadowColor = '#FFD700';
-    ctx.shadowBlur = 30 + Math.sin(t * 10) * 10;
+    ctx.shadowBlur = 8 + superSaiyan * (24 + Math.sin(t * 10) * 8);
   }
 
   // Spiky hair
   ctx.fillStyle = hair;
   ctx.beginPath();
   ctx.moveTo(-8, -45);
-  ctx.lineTo(-18, -75); ctx.lineTo(-6, -58);
-  ctx.lineTo(-2, -82); ctx.lineTo(4, -55);
-  ctx.lineTo(12, -78); ctx.lineTo(10, -52);
-  ctx.lineTo(20, -70); ctx.lineTo(14, -45);
-  ctx.lineTo(22, -60); ctx.lineTo(16, -40);
+  ctx.lineTo(-20 - superSaiyan * 4, -75 - hairLift); ctx.lineTo(-6, -58);
+  ctx.lineTo(-2, -82 - hairLift * 1.25); ctx.lineTo(4, -55);
+  ctx.lineTo(13 + superSaiyan * 3, -78 - hairLift); ctx.lineTo(10, -52);
+  ctx.lineTo(22 + superSaiyan * 5, -70 - hairLift * 0.6); ctx.lineTo(14, -45);
+  ctx.lineTo(24 + superSaiyan * 4, -60 - hairLift * 0.3); ctx.lineTo(16, -40);
   ctx.closePath();
   ctx.fill();
   ctx.shadowBlur = 0;
@@ -293,8 +299,8 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.ellipse(4, -35, 14, 16, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eyes (blue when Super Saiyan)
-  ctx.fillStyle = phase >= 1 ? '#00E5FF' : '#000';
+  // Eyes shift from dark to electric blue with the transformation.
+  ctx.fillStyle = 'rgb(0,' + Math.round(229 * superSaiyan) + ',' + Math.round(255 * superSaiyan) + ')';
   ctx.beginPath();
   ctx.ellipse(-2, -37, 2.5, 3, 0, 0, Math.PI * 2);
   ctx.ellipse(10, -37, 2.5, 3, 0, 0, Math.PI * 2);
@@ -319,7 +325,7 @@ function drawGoku(x, y, scale, phase, t) {
 
   // Arms - Different poses based on animation phase
   ctx.fillStyle = bodyColor;
-  if (phase >= 2) {
+  if (attacking) {
     // Arms stretched forward for Kamehameha pose
     ctx.beginPath();
     ctx.moveTo(20, -10); ctx.lineTo(55, -5);
@@ -381,16 +387,39 @@ function drawAura(x, y, scale, intensity, t) {
   ctx.translate(x, y);
   const baseR = 60 * scale;
   const pulseR = baseR + Math.sin(t * 8) * 10 * intensity;
+
+  // Flickering flame silhouettes give the golden aura a stronger Super Saiyan read.
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 13; i++) {
+    const angle = (i / 13) * Math.PI * 2 + t * 0.8;
+    const flameLength = (20 + Math.sin(t * 12 + i * 2.7) * 12) * intensity * scale;
+    const fx = Math.cos(angle) * baseR * 0.65;
+    const fy = -10 + Math.sin(angle) * baseR * 0.9;
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(angle + Math.PI / 2);
+    const flame = ctx.createLinearGradient(0, 0, 0, -flameLength);
+    flame.addColorStop(0, 'rgba(255,189,0,' + (0.34 * intensity) + ')');
+    flame.addColorStop(0.55, 'rgba(255,232,100,' + (0.2 * intensity) + ')');
+    flame.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(-7 * scale, 0);
+    ctx.quadraticCurveTo(0, -flameLength, 7 * scale, 0);
+    ctx.quadraticCurveTo(0, -flameLength * 0.35, -7 * scale, 0);
+    ctx.fill();
+    ctx.restore();
+  }
   
   // Concentric aura rings with gradient
   for (let i = 3; i >= 0; i--) {
     const r = pulseR + i * 20 * intensity;
     const alpha = (0.15 - i * 0.03) * intensity;
     const grad = ctx.createRadialGradient(0, -10, 0, 0, -10, r);
-    grad.addColorStop(0, 'rgba(0,191,255,' + alpha + ')');
-    grad.addColorStop(0.5, 'rgba(30,144,255,' + (alpha * 0.6) + ')');
-    grad.addColorStop(0.8, 'rgba(255,215,0,' + (alpha * 0.3) + ')');
-    grad.addColorStop(1, 'rgba(0,0,255,0)');
+    grad.addColorStop(0, 'rgba(255,255,255,' + alpha + ')');
+    grad.addColorStop(0.36, 'rgba(255,215,0,' + (alpha * 1.4) + ')');
+    grad.addColorStop(0.72, 'rgba(255,125,0,' + (alpha * 0.5) + ')');
+    grad.addColorStop(1, 'rgba(255,170,0,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.ellipse(0, -10, r * 0.7, r, 0, 0, Math.PI * 2);
@@ -399,7 +428,7 @@ function drawAura(x, y, scale, intensity, t) {
   
   // Electric crackles around aura
   if (intensity > 0.5) {
-    ctx.strokeStyle = 'rgba(0,230,255,' + (0.6 * intensity) + ')';
+    ctx.strokeStyle = 'rgba(255,248,184,' + (0.7 * intensity) + ')';
     ctx.lineWidth = 2;
     for (let i = 0; i < 5; i++) {
       const angle = (t * 3 + i * 1.3) % (Math.PI * 2);
@@ -413,6 +442,27 @@ function drawAura(x, y, scale, intensity, t) {
       }
       ctx.stroke();
     }
+  }
+  ctx.restore();
+}
+
+/** Draw rising gold sparks that sell the transformation and power-up. */
+function drawSuperSaiyanSparks(x, y, scale, intensity, t) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 16; i++) {
+    const angle = i * 2.4;
+    const drift = ((t * 55 + i * 47) % 125) - 20;
+    const sx = Math.sin(angle) * (20 + (i % 4) * 12) * scale;
+    const sy = 38 * scale - drift * scale;
+    const length = (5 + (i % 3) * 4) * intensity * scale;
+    ctx.strokeStyle = 'rgba(255,240,129,' + (0.25 + intensity * 0.65) + ')';
+    ctx.lineWidth = Math.max(1, 1.5 * scale);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + Math.cos(angle) * length, sy - length * 2);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -507,30 +557,25 @@ function spawnAuraParticles(x, y, count) {
 
 /**
  * Draw a spinning leaf
- * @param x - X position
- * @param y - Y position
- * @param rotation - Rotation angle in radians
- * @param scale - Scale factor
- * @param alpha - Opacity (0-1)
+ * @param leaf - Leaf particle to draw
  */
-function drawLeaf(x, y, rotation, scale, alpha) {
+function drawLeaf(leaf) {
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.scale(scale, scale);
-  ctx.globalAlpha = alpha;
+  ctx.translate(leaf.x, leaf.y);
+  ctx.rotate(leaf.rotation + Math.sin(leaf.wobble) * 0.35);
+  ctx.scale(leaf.scale, leaf.scale);
+  ctx.globalAlpha = Math.max(0, Math.min(1, leaf.life * 1.35));
   
-  // Leaf colors: green to golden
-  const colors = ['#2D5016', '#3D6B1F', '#7CB342', '#CDDC39'];
-  ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+  ctx.fillStyle = leaf.color;
   
-  // Draw leaf shape (ellipse with pointed end)
+  // Asymmetric pointed leaf with a visible midrib.
   ctx.beginPath();
-  ctx.ellipse(0, 0, 8, 15, 0, 0, Math.PI * 2);
+  ctx.moveTo(0, -15);
+  ctx.bezierCurveTo(10, -11, 10, 7, 0, 15);
+  ctx.bezierCurveTo(-10, 7, -10, -11, 0, -15);
   ctx.fill();
   
-  // Leaf vein for detail
-  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.strokeStyle = 'rgba(38,57,18,0.45)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, -15);
@@ -541,31 +586,38 @@ function drawLeaf(x, y, rotation, scale, alpha) {
 }
 
 /**
- * Spawn leaves from top and sides - blown by Kamehameha wind
+ * Spawn leaves into the Kamehameha's pressure wave.
  * @param count - Number of leaves to spawn
+ * @param windStrength - Horizontal force generated by the blast
+ * @param sourceX - Beam origin for a concentrated gust near Goku
  */
-function spawnLeaves(count) {
-  for (let i = 0; i < count; i++) {
-    // Leaves come from top/sides and get pushed down by wind
-    const spawnX = Math.random() * W;
-    const spawnY = Math.random() * (H * 0.3) - 50; // Top portion
-    
-    // Wind pushes leaves rightward (direction of blast)
-    const windStrength = 2 + Math.random() * 3;
-    const vx = windStrength + (Math.random() - 0.5) * 1;
-    const vy = 1 + Math.random() * 2; // Falls down slowly
-    
+function spawnLeaves(count, windStrength, sourceX) {
+  const available = Math.max(0, PARTICLE_CONFIG.leaf.max - leafParticles.length);
+  for (let i = 0; i < Math.min(count, available); i++) {
+    const beginsAtEdge = Math.random() < 0.48;
+    const spawnX = beginsAtEdge
+      ? -25 - Math.random() * 90
+      : sourceX + Math.random() * W * 0.55;
+    const nearBeam = Math.random() < 0.58;
+    const spawnY = nearBeam
+      ? H * (0.32 + Math.random() * 0.34)
+      : H * (0.08 + Math.random() * 0.84);
+    const color = ['#2D5016', '#3D6B1F', '#709B2E', '#B6A22A', '#CD8B24'][Math.floor(Math.random() * 5)];
     leafParticles.push({
       x: spawnX,
       y: spawnY,
-      vx: vx,
-      vy: vy,
+      vx: windStrength * (0.35 + Math.random() * 0.35),
+      vy: (Math.random() - 0.5) * 2,
+      fall: 0.2 + Math.random() * 1.2,
       rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.3,
-      life: PARTICLE_CONFIG.leaf.lifetime,
+      rotationSpeed: (Math.random() - 0.5) * 0.22,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: 0.08 + Math.random() * 0.12,
+      isLeaf: true,
+      life: 1,
       decay: PARTICLE_CONFIG.leaf.decay.min + Math.random() * (PARTICLE_CONFIG.leaf.decay.max - PARTICLE_CONFIG.leaf.decay.min),
       scale: 0.5 + Math.random() * 1.5,
-      color: ['#2D5016', '#3D6B1F', '#7CB342', '#CDDC39'][Math.floor(Math.random() * 4)],
+      color: color,
     });
   }
 }
@@ -573,17 +625,25 @@ function spawnLeaves(count) {
 /**
  * Update particle physics and lifecycle
  * @param arr - Particle array to update
+ * @param frameScale - Normalized elapsed frame duration
+ * @param windStrength - Horizontal wind force for leaf particles
  */
-function updateParticles(arr) {
+function updateParticles(arr, frameScale, windStrength) {
   for (let i = arr.length - 1; i >= 0; i--) {
     const p = arr[i];
-    p.x += p.vx; 
-    p.y += p.vy; 
-    p.life -= p.decay;
-    if (p.rotation !== undefined) {
-      p.rotation += p.rotationSpeed;
+    if (p.isLeaf) {
+      const gust = windStrength * (0.78 + Math.sin(p.wobble) * 0.22);
+      p.vx += (gust - p.vx) * 0.018 * frameScale;
+      p.vy += (p.fall - p.vy) * 0.022 * frameScale;
+      p.wobble += p.wobbleSpeed * frameScale;
     }
-    if (p.life <= 0) {
+    p.x += p.vx * frameScale;
+    p.y += p.vy * frameScale;
+    p.life -= p.decay * frameScale;
+    if (p.rotation !== undefined) {
+      p.rotation += p.rotationSpeed * frameScale;
+    }
+    if (p.life <= 0 || p.x > W + 110 || p.y > H + 110 || p.y < -110) {
       arr.splice(i, 1);
     }
   }
@@ -609,7 +669,7 @@ function drawParticles(arr) {
  */
 function drawLeaves(arr) {
   for (const leaf of arr) {
-    drawLeaf(leaf.x, leaf.y, leaf.rotation, leaf.scale, leaf.life / PARTICLE_CONFIG.leaf.lifetime);
+    drawLeaf(leaf);
   }
 }
 
@@ -658,6 +718,7 @@ let blastStarted = false;
 
 initSound();
 startTime = performance.now();
+previousFrameTime = startTime;
 
 /**
  * Main animation frame callback
@@ -666,6 +727,9 @@ startTime = performance.now();
 function animate(now) {
   const elapsed = (now - startTime) / 1000;
   const totalDur = DURATION / 1000;
+  const frameScale = Math.min(2.5, Math.max(0.25, (now - previousFrameTime) / (1000 / 60)));
+  previousFrameTime = now;
+  let leafWind = 0;
   
   // Check if animation is complete
   if (elapsed > totalDur + 0.5) {
@@ -738,9 +802,10 @@ function animate(now) {
     
     // Spawn transformation particles
     spawnAuraParticles(gokuX, gokuY, Math.floor(p * 8));
+    drawSuperSaiyanSparks(gokuX, gokuY, gokuScale, p, elapsed);
     
-    // Draw Goku in transition (phase progresses from 0 to 1)
-    drawGoku(gokuX, gokuY, gokuScale, Math.min(p * 2, 1), elapsed);
+    // Draw Goku in transition; hair and eyes change continuously from base to Super Saiyan.
+    drawGoku(gokuX, gokuY, gokuScale, p, elapsed);
   }
   // PHASE 2: Power-up - Charge energy (1.2-2.0s)
   else if (elapsed < PHASE_CHARGE.end) {
@@ -750,8 +815,15 @@ function animate(now) {
     }
     const p = (elapsed - PHASE_CHARGE.start) / (PHASE_CHARGE.end - PHASE_CHARGE.start);
     drawAura(gokuX, gokuY, gokuScale, 0.7 + easeInCubic(p) * 0.3, elapsed);
+    drawSuperSaiyanSparks(gokuX, gokuY, gokuScale, 0.65 + p * 0.35, elapsed);
     spawnAuraParticles(gokuX, gokuY, Math.floor(p * PARTICLE_CONFIG.aura.maxPerFrame));
     drawGoku(gokuX, gokuY, gokuScale, 1.5 + p * 0.5, elapsed);
+    leafWind = 3 + p * 7;
+
+    // The gathering energy starts to tug at nearby leaves before the blast lands.
+    if (p > 0.55) {
+      spawnLeaves(1, leafWind, gokuX);
+    }
 
     // Show text scaling up
     if (p > 0.3) {
@@ -777,14 +849,16 @@ function animate(now) {
     const phaseDur = totalDur - PHASE_FADEOUT.duration - PHASE_CHARGE.end;
     const p = Math.min((elapsed - PHASE_CHARGE.end) / (phaseDur * 0.4), 1);
     drawAura(gokuX, gokuY, gokuScale, 1, elapsed);
+    drawSuperSaiyanSparks(gokuX, gokuY, gokuScale, 1, elapsed);
     drawGoku(gokuX, gokuY, gokuScale, 2, elapsed);
     const beamStartX = gokuX + BEAM_START_OFFSET.x * gokuScale;
     const beamStartY = gokuY + BEAM_START_OFFSET.y * gokuScale;
     drawBeam(beamStartX, beamStartY, p, elapsed);
     spawnAuraParticles(gokuX, gokuY, 2);
     
-    // Spawn leaves during blast
-    spawnLeaves(PARTICLE_CONFIG.leaf.spawnPerFrame);
+    // A powerful horizontal gust carries leaves through the beam's foreground.
+    leafWind = 16 + p * 10;
+    spawnLeaves(PARTICLE_CONFIG.leaf.spawnPerFrame, leafWind, gokuX);
   }
   // PHASE 4: Fade out - Animation concludes (totalDur-1 - totalDur)
   else {
@@ -792,16 +866,18 @@ function animate(now) {
     const alpha = 1 - easeInCubic(p);
     ctx.globalAlpha = alpha;
     drawAura(gokuX, gokuY, gokuScale, 1 - p, elapsed);
+    drawSuperSaiyanSparks(gokuX, gokuY, gokuScale, alpha, elapsed);
     drawGoku(gokuX, gokuY, gokuScale, 2, elapsed);
     const beamStartX = gokuX + BEAM_START_OFFSET.x * gokuScale;
     const beamStartY = gokuY + BEAM_START_OFFSET.y * gokuScale;
     drawBeam(beamStartX, beamStartY, 1, elapsed);
+    leafWind = 12 * alpha;
   }
 
   // Update and draw all particles
-  updateParticles(particles);
-  updateParticles(beamParticles);
-  updateParticles(leafParticles);
+  updateParticles(particles, frameScale, 0);
+  updateParticles(beamParticles, frameScale, 0);
+  updateParticles(leafParticles, frameScale, leafWind);
   drawParticles(particles);
   drawParticles(beamParticles);
   drawLeaves(leafParticles);
