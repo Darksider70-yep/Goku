@@ -463,21 +463,34 @@ function spawnAuraParticles(x, y, count) {
       y: y + (Math.random() - 0.5) * 60,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 2,
-      life: 1, decay: 0.01 + Math.random() * 0.02,
+      life: 1, 
+      decay: PARTICLE_CONFIG.aura.decay.min + Math.random() * (PARTICLE_CONFIG.aura.decay.max - PARTICLE_CONFIG.aura.decay.min),
       size: 2 + Math.random() * 4,
       color: Math.random() > 0.5 ? '0,191,255' : '255,215,0',
     });
   }
 }
 
+/**
+ * Update particle physics and lifecycle
+ * @param arr - Particle array to update
+ */
 function updateParticles(arr) {
   for (let i = arr.length - 1; i >= 0; i--) {
     const p = arr[i];
-    p.x += p.vx; p.y += p.vy; p.life -= p.decay;
-    if (p.life <= 0) arr.splice(i, 1);
+    p.x += p.vx; 
+    p.y += p.vy; 
+    p.life -= p.decay;
+    if (p.life <= 0) {
+      arr.splice(i, 1);
+    }
   }
 }
 
+/**
+ * Draw all particles with alpha based on life
+ * @param arr - Particle array to draw
+ */
 function drawParticles(arr) {
   for (const p of arr) {
     const c = p.color || '0,191,255';
@@ -488,7 +501,11 @@ function drawParticles(arr) {
   }
 }
 
-// --- SPEED LINES ---
+/**
+ * Draw speed lines radiating from Goku for impact
+ * @param intensity - Visual intensity (0-1)
+ * @param t - Current time for animation
+ */
 function drawSpeedLines(intensity, t) {
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,' + (0.1 * intensity) + ')';
@@ -506,23 +523,52 @@ function drawSpeedLines(intensity, t) {
   ctx.restore();
 }
 
-// --- MAIN ANIMATION LOOP ---
-let chargeStarted = false, blastStarted = false;
+/**
+ * Ease out cubic - starts fast, ends slow
+ */
+function easeOutCubic(t) { 
+  return 1 - Math.pow(1 - t, 3); 
+}
+
+/**
+ * Ease in cubic - starts slow, accelerates
+ */
+function easeInCubic(t) { 
+  return t * t * t; 
+}
+
+// ========================================
+// MAIN ANIMATION LOOP
+// ========================================
+
+let chargeStarted = false;
+let blastStarted = false;
+
 initSound();
 startTime = performance.now();
 
+/**
+ * Main animation frame callback
+ * Orchestrates all animation phases and visual effects
+ */
 function animate(now) {
   const elapsed = (now - startTime) / 1000;
   const totalDur = DURATION / 1000;
+  
+  // Check if animation is complete
   if (elapsed > totalDur + 0.5) {
-    const vscode = acquireVsCodeApi();
-    vscode.postMessage({ command: 'animationComplete' });
+    try {
+      const vscode = acquireVsCodeApi();
+      vscode.postMessage({ command: 'animationComplete' });
+    } catch(e) {
+      console.warn('Failed to send completion message:', e);
+    }
     return;
   }
 
   ctx.save();
 
-  // Screen shake during beam
+  // Screen shake during beam attack
   if (elapsed > 0.6 && elapsed < totalDur - 1) {
     const shakeIntensity = elapsed > 1.8 ? 6 : 3;
     shakeX = (Math.random() - 0.5) * shakeIntensity;
@@ -530,11 +576,11 @@ function animate(now) {
     ctx.translate(shakeX, shakeY);
   }
 
-  // Background
+  // Black background with slight transparency
   ctx.fillStyle = 'rgba(0,0,0,0.85)';
   ctx.fillRect(-10, -10, W + 20, H + 20);
 
-  // Stars / energy field
+  // Animated energy field stars
   ctx.fillStyle = 'rgba(100,180,255,0.05)';
   for (let i = 0; i < 50; i++) {
     const sx = ((i * 137.5 + elapsed * 20) % W);
@@ -544,23 +590,30 @@ function animate(now) {
     ctx.fill();
   }
 
-  const gokuX = W * 0.18;
-  const gokuY = H * 0.55;
-  const gokuScale = Math.min(W, H) / 350;
+  const gokuX = W * GOKU_POSITION.x;
+  const gokuY = H * GOKU_POSITION.y;
+  const gokuScale = GOKU_SCALE_FACTOR(Math.min(W, H));
 
-  // Phase 0: Entry (0 - 0.6s)
-  if (elapsed < 0.6) {
-    const p = elapsed / 0.6;
+  // ========================================
+  // ANIMATION PHASES
+  // ========================================
+
+  // PHASE 0: Entry - Goku flies in (0-0.6s)
+  if (elapsed < PHASE_ENTRY.end) {
+    const p = elapsed / PHASE_ENTRY.end;
     const entryX = -100 + (gokuX + 100) * easeOutCubic(p);
     drawGoku(entryX, gokuY, gokuScale, 0, elapsed);
     drawSpeedLines(1 - p, elapsed);
   }
-  // Phase 1: Power-up (0.6 - 1.8s)
-  else if (elapsed < 1.8) {
-    if (!chargeStarted) { chargeStarted = true; playChargeSound(); }
-    const p = (elapsed - 0.6) / 1.2;
+  // PHASE 1: Power-up - Charge energy (0.6-1.8s)
+  else if (elapsed < PHASE_CHARGE.end) {
+    if (!chargeStarted) { 
+      chargeStarted = true; 
+      playChargeSound(); 
+    }
+    const p = (elapsed - PHASE_CHARGE.start) / (PHASE_CHARGE.end - PHASE_CHARGE.start);
     drawAura(gokuX, gokuY, gokuScale, easeInCubic(p), elapsed);
-    spawnAuraParticles(gokuX, gokuY, Math.floor(p * 5));
+    spawnAuraParticles(gokuX, gokuY, Math.floor(p * PARTICLE_CONFIG.aura.maxPerFrame));
     drawGoku(gokuX, gokuY, gokuScale, 1, elapsed);
 
     // Show text scaling up
@@ -570,38 +623,42 @@ function animate(now) {
       textEl.style.transform = 'translate(-50%, -50%) scale(' + (0.3 + tp * 0.7) + ')';
     }
   }
-  // Phase 2: KAMEHAMEHA beam (1.8 - totalDur-1)
-  else if (elapsed < totalDur - 1) {
+  // PHASE 2: KAMEHAMEHA beam - Fire the attack (1.8s - totalDur-1)
+  else if (elapsed < totalDur - PHASE_FADEOUT.duration) {
     if (!blastStarted) {
       blastStarted = true;
       playBlastSound();
       flash.style.transition = 'opacity 0.15s';
       flash.style.opacity = '0.8';
-      setTimeout(() => { flash.style.transition = 'opacity 0.5s'; flash.style.opacity = '0'; }, 150);
+      setTimeout(() => { 
+        flash.style.transition = 'opacity 0.5s'; 
+        flash.style.opacity = '0'; 
+      }, 150);
       textEl.style.transition = 'opacity 0.5s';
       textEl.style.opacity = '0';
     }
-    const phaseDur = totalDur - 1 - 1.8;
-    const p = Math.min((elapsed - 1.8) / (phaseDur * 0.4), 1);
+    const phaseDur = totalDur - PHASE_FADEOUT.duration - PHASE_CHARGE.end;
+    const p = Math.min((elapsed - PHASE_CHARGE.end) / (phaseDur * 0.4), 1);
     drawAura(gokuX, gokuY, gokuScale, 1, elapsed);
     drawGoku(gokuX, gokuY, gokuScale, 2, elapsed);
-    const beamStartX = gokuX + 58 * gokuScale;
-    const beamStartY = gokuY - 2 * gokuScale;
+    const beamStartX = gokuX + BEAM_START_OFFSET.x * gokuScale;
+    const beamStartY = gokuY + BEAM_START_OFFSET.y * gokuScale;
     drawBeam(beamStartX, beamStartY, p, elapsed);
     spawnAuraParticles(gokuX, gokuY, 2);
   }
-  // Phase 3: Fade out
+  // PHASE 3: Fade out - Animation concludes (totalDur-1 - totalDur)
   else {
-    const p = (elapsed - (totalDur - 1)) / 1;
+    const p = (elapsed - (totalDur - PHASE_FADEOUT.duration)) / PHASE_FADEOUT.duration;
     const alpha = 1 - easeInCubic(p);
     ctx.globalAlpha = alpha;
     drawAura(gokuX, gokuY, gokuScale, 1 - p, elapsed);
     drawGoku(gokuX, gokuY, gokuScale, 2, elapsed);
-    const beamStartX = gokuX + 58 * gokuScale;
-    const beamStartY = gokuY - 2 * gokuScale;
+    const beamStartX = gokuX + BEAM_START_OFFSET.x * gokuScale;
+    const beamStartY = gokuY + BEAM_START_OFFSET.y * gokuScale;
     drawBeam(beamStartX, beamStartY, 1, elapsed);
   }
 
+  // Update and draw all particles
   updateParticles(particles);
   updateParticles(beamParticles);
   drawParticles(particles);
@@ -610,9 +667,6 @@ function animate(now) {
   ctx.restore();
   requestAnimationFrame(animate);
 }
-
-function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-function easeInCubic(t) { return t * t * t; }
 
 requestAnimationFrame(animate);
 </script>

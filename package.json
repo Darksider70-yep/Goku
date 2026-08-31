@@ -47,27 +47,30 @@
         "goku.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable the Kamehameha animation"
+          "description": "Enable/disable the Kamehameha animation globally"
         },
         "goku.animationDuration": {
           "type": "number",
           "default": 4500,
-          "description": "Animation duration in milliseconds"
+          "minimum": 1000,
+          "maximum": 10000,
+          "step": 500,
+          "description": "Animation duration in milliseconds (1000-10000)"
         },
         "goku.soundEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable Kamehameha sound effects"
+          "description": "Enable/disable Kamehameha sound effects (Web Audio API synthesis)"
         },
         "goku.triggerOnTask": {
           "type": "boolean",
           "default": true,
-          "description": "Trigger animation when a task completes successfully"
+          "description": "Trigger animation when a task completes successfully with exit code 0"
         },
         "goku.triggerOnDebug": {
           "type": "boolean",
           "default": true,
-          "description": "Trigger animation when a debug session ends"
+          "description": "Trigger animation when a debug session ends (success or stop)"
         }
       }
     }
