@@ -1,92 +1,226 @@
+/**
+ * Generates an HTML string containing a full-screen Goku Kamehameha animation.
+ * The animation includes:
+ * - Goku character with Super Saiyan transformation
+ * - Energy buildup aura and particles
+ * - Kamehameha beam effect with full-screen coverage
+ * - Synchronized sound design (charge and blast)
+ * - Screen shake and visual feedback
+ * 
+ * @param duration - Total animation duration in milliseconds
+ * @param soundEnabled - Whether to enable Web Audio API sound synthesis
+ * @returns Complete HTML string with embedded CSS and JavaScript
+ */
 export function getAnimationHtml(duration: number, soundEnabled: boolean): string {
   return /*html*/ `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐉 KAMEHAMEHA! 🐉</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background: #000; width: 100vw; height: 100vh; }
-  canvas { display: block; width: 100vw; height: 100vh; }
+  * { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+  }
+  
+  body { 
+    overflow: hidden; 
+    background: #000; 
+    width: 100vw; 
+    height: 100vh;
+  }
+  
+  canvas { 
+    display: block; 
+    width: 100vw; 
+    height: 100vh;
+  }
+  
   #text-overlay {
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
-    font-family: 'Impact', 'Arial Black', sans-serif; font-size: 72px;
-    color: #fff; text-shadow: 0 0 20px #00bfff, 0 0 40px #00bfff, 0 0 80px #1e90ff, 0 0 120px #0040ff;
-    letter-spacing: 8px; opacity: 0; pointer-events: none; z-index: 10;
+    position: fixed; 
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%) scale(0);
+    font-family: 'Impact', 'Arial Black', sans-serif; 
+    font-size: 72px;
+    color: #fff; 
+    text-shadow: 
+      0 0 20px #00bfff, 
+      0 0 40px #00bfff, 
+      0 0 80px #1e90ff, 
+      0 0 120px #0040ff;
+    letter-spacing: 8px; 
+    opacity: 0; 
+    pointer-events: none; 
+    z-index: 10;
     white-space: nowrap;
   }
-  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 5; }
+  
+  #flash { 
+    position: fixed; 
+    inset: 0; 
+    background: #fff; 
+    opacity: 0; 
+    pointer-events: none; 
+    z-index: 5; 
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="flash"></div>
 <div id="text-overlay">KA-ME-HA-ME-HAAA!</div>
+
 <script>
+// ========================================
+// ANIMATION CONFIGURATION
+// ========================================
 const DURATION = ${duration};
 const SOUND = ${soundEnabled};
+
+// Timing phases (in seconds)
+const PHASE_ENTRY = { start: 0, end: 0.6 };
+const PHASE_CHARGE = { start: 0.6, end: 1.8 };
+const PHASE_BLAST = { start: 1.8, duration: null }; // Calculated from DURATION
+const PHASE_FADEOUT = { duration: 1 };
+
+// Visual parameters
+const GOKU_SCALE_FACTOR = (minDim) => minDim / 350;
+const GOKU_POSITION = { x: 0.18, y: 0.55 };
+const BEAM_START_OFFSET = { x: 58, y: -2 };
+
+// Particle configuration
+const PARTICLE_CONFIG = {
+  aura: { maxPerFrame: 5, decay: { min: 0.01, max: 0.02 } },
+  beam: { spawnChance: 0.5, decay: { min: 0.02, max: 0.03 } }
+};
+
+// ========================================
+// CANVAS & CONTEXT SETUP
+// ========================================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+
+if (!ctx) {
+  console.error('Failed to get 2D context from canvas');
+  document.body.innerHTML = '<p style="color: white; padding: 20px;">Unable to initialize animation.</p>';
+}
+
 const flash = document.getElementById('flash');
 const textEl = document.getElementById('text-overlay');
-let W, H, startTime, shakeX = 0, shakeY = 0;
+let W, H, startTime;
+let shakeX = 0, shakeY = 0;
 const particles = [];
 const beamParticles = [];
 
-function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+// Resize canvas to window size
+function resize() { 
+  W = canvas.width = window.innerWidth; 
+  H = canvas.height = window.innerHeight; 
+}
 window.addEventListener('resize', resize);
 resize();
 
-// --- SOUND SYNTHESIS ---
+// ========================================
+// AUDIO SYNTHESIS
+// ========================================
 let audioCtx;
+
+/**
+ * Initialize Web Audio API context
+ */
 function initSound() {
   if (!SOUND) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  } catch(e) {}
+  } catch(e) {
+    console.warn('Audio context initialization failed:', e);
+  }
 }
+
+/**
+ * Play charging sound effect (frequency sweep)
+ */
 function playChargeSound() {
   if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(80, audioCtx.currentTime);
-  o.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 1.2);
-  g.gain.setValueAtTime(0.3, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 1.0);
-  g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime + 1.5);
+  try {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(80, audioCtx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 1.2);
+    g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 1.0);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+    o.connect(g); 
+    g.connect(audioCtx.destination);
+    o.start(); 
+    o.stop(audioCtx.currentTime + 1.5);
+  } catch(e) {
+    console.warn('Charge sound playback failed:', e);
+  }
 }
+
+/**
+ * Play blast sound effect (noise burst + bass boom)
+ */
 function playBlastSound() {
   if (!audioCtx) return;
-  const bufSize = audioCtx.sampleRate * 2;
-  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.5));
-  }
-  const src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'lowpass'; filt.frequency.value = 600;
-  filt.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 1.5);
-  const g = audioCtx.createGain();
-  g.gain.setValueAtTime(0.7, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2.0);
-  src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
-  src.start();
+  try {
+    // Noise burst for impact
+    const bufSize = audioCtx.sampleRate * 2;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.5));
+    }
+    
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'lowpass'; 
+    filt.frequency.value = 600;
+    filt.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 1.5);
+    
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.7, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2.0);
+    
+    src.connect(filt); 
+    filt.connect(g); 
+    g.connect(audioCtx.destination);
+    src.start();
 
-  // Add a deep bass boom
-  const bass = audioCtx.createOscillator();
-  const bg = audioCtx.createGain();
-  bass.type = 'sine'; bass.frequency.value = 40;
-  bg.gain.setValueAtTime(0.5, audioCtx.currentTime);
-  bg.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
-  bass.connect(bg); bg.connect(audioCtx.destination);
-  bass.start(); bass.stop(audioCtx.currentTime + 1.5);
+    // Deep bass boom
+    const bass = audioCtx.createOscillator();
+    const bg = audioCtx.createGain();
+    bass.type = 'sine'; 
+    bass.frequency.value = 40;
+    bg.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    bg.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+    bass.connect(bg); 
+    bg.connect(audioCtx.destination);
+    bass.start(); 
+    bass.stop(audioCtx.currentTime + 1.5);
+  } catch(e) {
+    console.warn('Blast sound playback failed:', e);
+  }
 }
 
-// --- DRAWING HELPERS ---
+// ========================================
+// CHARACTER & EFFECTS DRAWING
+// ========================================
+
+/**
+ * Draw Goku character in various states
+ * @param x - X position
+ * @param y - Y position
+ * @param scale - Scale factor
+ * @param phase - 0=normal, 1=super saiyan (aura), 2=powering Kamehameha
+ * @param t - Current time for animation variations
+ */
 function drawGoku(x, y, scale, phase, t) {
   ctx.save();
   ctx.translate(x, y);
