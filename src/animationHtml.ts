@@ -82,8 +82,9 @@ const SOUND = ${soundEnabled};
 
 // Timing phases (in seconds)
 const PHASE_ENTRY = { start: 0, end: 0.6 };
-const PHASE_CHARGE = { start: 0.6, end: 1.8 };
-const PHASE_BLAST = { start: 1.8, duration: null }; // Calculated from DURATION
+const PHASE_TRANSFORM = { start: 0.6, end: 1.2 };
+const PHASE_CHARGE = { start: 1.2, end: 2.0 };
+const PHASE_BLAST = { start: 2.0, duration: null }; // Calculated from DURATION
 const PHASE_FADEOUT = { duration: 1 };
 
 // Visual parameters
@@ -94,7 +95,8 @@ const BEAM_START_OFFSET = { x: 58, y: -2 };
 // Particle configuration
 const PARTICLE_CONFIG = {
   aura: { maxPerFrame: 5, decay: { min: 0.01, max: 0.02 } },
-  beam: { spawnChance: 0.5, decay: { min: 0.02, max: 0.03 } }
+  beam: { spawnChance: 0.5, decay: { min: 0.02, max: 0.03 } },
+  leaf: { spawnPerFrame: 3, decay: { min: 0.008, max: 0.015 }, lifetime: 8 }
 };
 
 // ========================================
@@ -114,6 +116,7 @@ let W, H, startTime;
 let shakeX = 0, shakeY = 0;
 const particles = [];
 const beamParticles = [];
+const leafParticles = [];
 
 // Resize canvas to window size
 function resize() { 
@@ -472,6 +475,71 @@ function spawnAuraParticles(x, y, count) {
 }
 
 /**
+ * Draw a spinning leaf
+ * @param x - X position
+ * @param y - Y position
+ * @param rotation - Rotation angle in radians
+ * @param scale - Scale factor
+ * @param alpha - Opacity (0-1)
+ */
+function drawLeaf(x, y, rotation, scale, alpha) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = alpha;
+  
+  // Leaf colors: green to golden
+  const colors = ['#2D5016', '#3D6B1F', '#7CB342', '#CDDC39'];
+  ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+  
+  // Draw leaf shape (ellipse with pointed end)
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Leaf vein for detail
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -15);
+  ctx.lineTo(0, 15);
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
+/**
+ * Spawn leaves from top and sides - blown by Kamehameha wind
+ * @param count - Number of leaves to spawn
+ */
+function spawnLeaves(count) {
+  for (let i = 0; i < count; i++) {
+    // Leaves come from top/sides and get pushed down by wind
+    const spawnX = Math.random() * W;
+    const spawnY = Math.random() * (H * 0.3) - 50; // Top portion
+    
+    // Wind pushes leaves rightward (direction of blast)
+    const windStrength = 2 + Math.random() * 3;
+    const vx = windStrength + (Math.random() - 0.5) * 1;
+    const vy = 1 + Math.random() * 2; // Falls down slowly
+    
+    leafParticles.push({
+      x: spawnX,
+      y: spawnY,
+      vx: vx,
+      vy: vy,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.3,
+      life: PARTICLE_CONFIG.leaf.lifetime,
+      decay: PARTICLE_CONFIG.leaf.decay.min + Math.random() * (PARTICLE_CONFIG.leaf.decay.max - PARTICLE_CONFIG.leaf.decay.min),
+      scale: 0.5 + Math.random() * 1.5,
+      color: ['#2D5016', '#3D6B1F', '#7CB342', '#CDDC39'][Math.floor(Math.random() * 4)],
+    });
+  }
+}
+
+/**
  * Update particle physics and lifecycle
  * @param arr - Particle array to update
  */
@@ -481,6 +549,9 @@ function updateParticles(arr) {
     p.x += p.vx; 
     p.y += p.vy; 
     p.life -= p.decay;
+    if (p.rotation !== undefined) {
+      p.rotation += p.rotationSpeed;
+    }
     if (p.life <= 0) {
       arr.splice(i, 1);
     }
@@ -498,6 +569,16 @@ function drawParticles(arr) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
     ctx.fill();
+  }
+}
+
+/**
+ * Draw all leaves with rotation and scaling
+ * @param arr - Leaf particle array to draw
+ */
+function drawLeaves(arr) {
+  for (const leaf of arr) {
+    drawLeaf(leaf.x, leaf.y, leaf.rotation, leaf.scale, leaf.life / PARTICLE_CONFIG.leaf.lifetime);
   }
 }
 
@@ -568,9 +649,9 @@ function animate(now) {
 
   ctx.save();
 
-  // Screen shake during beam attack
-  if (elapsed > 0.6 && elapsed < totalDur - 1) {
-    const shakeIntensity = elapsed > 1.8 ? 6 : 3;
+  // Screen shake during transformation and beam attack
+  if (elapsed > PHASE_TRANSFORM.start && elapsed < totalDur - 1) {
+    const shakeIntensity = elapsed > PHASE_CHARGE.end ? 8 : 2;
     shakeX = (Math.random() - 0.5) * shakeIntensity;
     shakeY = (Math.random() - 0.5) * shakeIntensity;
     ctx.translate(shakeX, shakeY);
@@ -605,16 +686,41 @@ function animate(now) {
     drawGoku(entryX, gokuY, gokuScale, 0, elapsed);
     drawSpeedLines(1 - p, elapsed);
   }
-  // PHASE 1: Power-up - Charge energy (0.6-1.8s)
+  // PHASE 1: Transform - Super Saiyan transformation (0.6-1.2s)
+  else if (elapsed < PHASE_TRANSFORM.end) {
+    const p = (elapsed - PHASE_TRANSFORM.start) / (PHASE_TRANSFORM.end - PHASE_TRANSFORM.start);
+    
+    // Transformation flash effect
+    if (p < 0.3) {
+      const flashIntensity = Math.sin(p * Math.PI * 3) * 0.6;
+      ctx.globalAlpha = flashIntensity;
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(-10, -10, W + 20, H + 20);
+      ctx.globalAlpha = 1;
+    }
+    
+    // Lightning/aura during transformation
+    if (p > 0.1) {
+      const auraIntensity = Math.min(easeInCubic(p), 1);
+      drawAura(gokuX, gokuY, gokuScale, auraIntensity * 0.8, elapsed);
+    }
+    
+    // Spawn transformation particles
+    spawnAuraParticles(gokuX, gokuY, Math.floor(p * 8));
+    
+    // Draw Goku in transition (phase progresses from 0 to 1)
+    drawGoku(gokuX, gokuY, gokuScale, Math.min(p * 2, 1), elapsed);
+  }
+  // PHASE 2: Power-up - Charge energy (1.2-2.0s)
   else if (elapsed < PHASE_CHARGE.end) {
     if (!chargeStarted) { 
       chargeStarted = true; 
       playChargeSound(); 
     }
     const p = (elapsed - PHASE_CHARGE.start) / (PHASE_CHARGE.end - PHASE_CHARGE.start);
-    drawAura(gokuX, gokuY, gokuScale, easeInCubic(p), elapsed);
+    drawAura(gokuX, gokuY, gokuScale, 0.7 + easeInCubic(p) * 0.3, elapsed);
     spawnAuraParticles(gokuX, gokuY, Math.floor(p * PARTICLE_CONFIG.aura.maxPerFrame));
-    drawGoku(gokuX, gokuY, gokuScale, 1, elapsed);
+    drawGoku(gokuX, gokuY, gokuScale, 1.5 + p * 0.5, elapsed);
 
     // Show text scaling up
     if (p > 0.3) {
@@ -623,7 +729,7 @@ function animate(now) {
       textEl.style.transform = 'translate(-50%, -50%) scale(' + (0.3 + tp * 0.7) + ')';
     }
   }
-  // PHASE 2: KAMEHAMEHA beam - Fire the attack (1.8s - totalDur-1)
+  // PHASE 3: KAMEHAMEHA beam - Fire the attack with leaves (2.0s - totalDur-1)
   else if (elapsed < totalDur - PHASE_FADEOUT.duration) {
     if (!blastStarted) {
       blastStarted = true;
@@ -645,8 +751,11 @@ function animate(now) {
     const beamStartY = gokuY + BEAM_START_OFFSET.y * gokuScale;
     drawBeam(beamStartX, beamStartY, p, elapsed);
     spawnAuraParticles(gokuX, gokuY, 2);
+    
+    // Spawn leaves during blast
+    spawnLeaves(PARTICLE_CONFIG.leaf.spawnPerFrame);
   }
-  // PHASE 3: Fade out - Animation concludes (totalDur-1 - totalDur)
+  // PHASE 4: Fade out - Animation concludes (totalDur-1 - totalDur)
   else {
     const p = (elapsed - (totalDur - PHASE_FADEOUT.duration)) / PHASE_FADEOUT.duration;
     const alpha = 1 - easeInCubic(p);
@@ -661,8 +770,10 @@ function animate(now) {
   // Update and draw all particles
   updateParticles(particles);
   updateParticles(beamParticles);
+  updateParticles(leafParticles);
   drawParticles(particles);
   drawParticles(beamParticles);
+  drawLeaves(leafParticles);
 
   ctx.restore();
   requestAnimationFrame(animate);
