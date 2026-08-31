@@ -597,6 +597,10 @@ function activate(context) {
       handleDebugSessionEnd(context);
     });
     context.subscriptions.push(debugListener);
+    const terminalListener = vscode2.window.onDidEndTerminalShellExecution((event) => {
+      handleTerminalCommandEnd(context, event);
+    });
+    context.subscriptions.push(terminalListener);
     vscode2.window.showInformationMessage(ACTIVATION_MESSAGE);
   } catch (error) {
     console.error("\u{1F409} Error during extension activation:", error);
@@ -628,6 +632,34 @@ function handleDebugSessionEnd(context) {
   }
   console.log("\u{1F409} Debug session ended! Kamehameha!");
   triggerAnimation(context);
+}
+function handleTerminalCommandEnd(context, event) {
+  const config = vscode2.workspace.getConfiguration("goku");
+  if (!config.get("enabled", true)) {
+    return;
+  }
+  if (!config.get("triggerOnTerminal", true)) {
+    return;
+  }
+  if (event.exitCode !== 0) {
+    return;
+  }
+  const commandLine = event.execution.commandLine.value;
+  if (!isCodeExecutionCommand(commandLine)) {
+    return;
+  }
+  console.log(`\u{1F409} Terminal command succeeded: ${commandLine}`);
+  triggerAnimation(context);
+}
+function isCodeExecutionCommand(commandLine) {
+  const command = commandLine.trim();
+  if (!command) {
+    return false;
+  }
+  if (/\b(?:npm|pnpm|yarn)\s+(?:install|i|add|remove|uninstall|update|list|outdated)\b/i.test(command)) {
+    return false;
+  }
+  return /(?:^|[\s;&|\\/])(?:node|nodejs|npm|npx|pnpm|yarn|bun|deno|python|python3|py|java|go|cargo|dotnet|ruby|php)(?:\.exe)?(?:\s|$)/i.test(command);
 }
 function triggerAnimation(context) {
   const now = Date.now();

@@ -2,7 +2,7 @@
   "name": "goku-kamehameha",
   "displayName": "Goku Kamehameha",
   "description": "🐉 Goku fires a Kamehameha across your editor every time your code runs successfully!",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "publisher": "daksh-gehlot",
   "icon": "icon.png",
   "repository": {
@@ -37,8 +37,8 @@
     "keybindings": [
       {
         "command": "goku.triggerKamehameha",
-        "key": "ctrl+shift+k",
-        "mac": "cmd+shift+k"
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k"
       }
     ],
     "configuration": {
@@ -71,6 +71,11 @@
           "type": "boolean",
           "default": true,
           "description": "Trigger animation when a debug session ends (success or stop)"
+        },
+        "goku.triggerOnTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trigger animation when a supported code command succeeds in the integrated terminal (requires shell integration)"
         }
       }
     }

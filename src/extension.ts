@@ -35,6 +35,14 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     context.subscriptions.push(debugListener);
 
+    // Code Runner and many language extensions execute through the integrated
+    // terminal rather than the VS Code Task API. Watch successful, code-like
+    // terminal commands so those runs can trigger the animation too.
+    const terminalListener = vscode.window.onDidEndTerminalShellExecution((event) => {
+      handleTerminalCommandEnd(context, event);
+    });
+    context.subscriptions.push(terminalListener);
+
     // Show activation message
     vscode.window.showInformationMessage(ACTIVATION_MESSAGE);
   } catch (error) {
@@ -87,6 +95,58 @@ function handleDebugSessionEnd(context: vscode.ExtensionContext): void {
 
   console.log('🐉 Debug session ended! Kamehameha!');
   triggerAnimation(context);
+}
+
+/**
+ * Handles successful executions in the integrated terminal. Shell integration
+ * provides the exit code, allowing this to behave like the task trigger while
+ * also supporting Code Runner and language-specific run commands.
+ */
+function handleTerminalCommandEnd(
+  context: vscode.ExtensionContext,
+  event: vscode.TerminalShellExecutionEndEvent
+): void {
+  const config = vscode.workspace.getConfiguration('goku');
+
+  if (!config.get<boolean>('enabled', true)) {
+    return;
+  }
+
+  if (!config.get<boolean>('triggerOnTerminal', true)) {
+    return;
+  }
+
+  // An undefined exit code means the terminal could not verify success.
+  if (event.exitCode !== 0) {
+    return;
+  }
+
+  const commandLine = event.execution.commandLine.value;
+  if (!isCodeExecutionCommand(commandLine)) {
+    return;
+  }
+
+  console.log(`🐉 Terminal command succeeded: ${commandLine}`);
+  triggerAnimation(context);
+}
+
+/**
+ * Limits terminal triggers to common program, run, test, and build commands
+ * so routine commands such as cd, dir, or git status do not fire the effect.
+ */
+function isCodeExecutionCommand(commandLine: string): boolean {
+  const command = commandLine.trim();
+  if (!command) {
+    return false;
+  }
+
+  // Package-management commands are successful terminal operations, but they
+  // are not code execution and would make the extension overly noisy.
+  if (/\b(?:npm|pnpm|yarn)\s+(?:install|i|add|remove|uninstall|update|list|outdated)\b/i.test(command)) {
+    return false;
+  }
+
+  return /(?:^|[\s;&|\\/])(?:node|nodejs|npm|npx|pnpm|yarn|bun|deno|python|python3|py|java|go|cargo|dotnet|ruby|php)(?:\.exe)?(?:\s|$)/i.test(command);
 }
 
 /**

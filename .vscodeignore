@@ -6,3 +6,4 @@ tsconfig.json
 esbuild.config.mjs
 .gitignore
 **/*.map
+debug.log
