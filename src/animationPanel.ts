@@ -41,6 +41,9 @@ export function showKamehamehaAnimation(
       }
     }
 
+    // Allow the webview to load the bundled anime character artwork.
+    const assetRoot = vscode.Uri.joinPath(context.extensionUri, 'assets');
+
     // Create new webview panel
     currentPanel = vscode.window.createWebviewPanel(
       'gokuKamehameha',
@@ -52,11 +55,15 @@ export function showKamehamehaAnimation(
       {
         enableScripts: true,
         retainContextWhenHidden: false,
+        localResourceRoots: [assetRoot],
       }
     );
 
     // Set HTML content with animation
-    currentPanel.webview.html = getAnimationHtml(duration, soundEnabled);
+    const characterUri = currentPanel.webview.asWebviewUri(
+      vscode.Uri.joinPath(assetRoot, 'anime-energy-warrior-v1.png')
+    ).toString();
+    currentPanel.webview.html = getAnimationHtml(duration, soundEnabled, characterUri);
 
     // Auto-close after animation completes
     setupAutoClose(duration);
