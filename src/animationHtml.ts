@@ -226,7 +226,7 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.translate(x, y);
   ctx.scale(scale, scale);
 
-  // Body
+  // Color palette
   const bodyColor = '#F4A460';
   const giTop = '#FF6B00';
   const giBottom = '#FF6B00';
@@ -234,7 +234,7 @@ function drawGoku(x, y, scale, phase, t) {
   const hair = phase >= 1 ? '#FFD700' : '#1a1a1a';
   const hairGlow = phase >= 1 ? 'rgba(255,215,0,0.4)' : 'rgba(0,0,0,0)';
 
-  // Hair glow for Super Saiyan
+  // Super Saiyan hair glow
   if (phase >= 1) {
     ctx.shadowColor = '#FFD700';
     ctx.shadowBlur = 30 + Math.sin(t * 10) * 10;
@@ -259,14 +259,14 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.ellipse(4, -35, 14, 16, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eyes
+  // Eyes (blue when Super Saiyan)
   ctx.fillStyle = phase >= 1 ? '#00E5FF' : '#000';
   ctx.beginPath();
   ctx.ellipse(-2, -37, 2.5, 3, 0, 0, Math.PI * 2);
   ctx.ellipse(10, -37, 2.5, 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Gi top
+  // Gi (martial arts uniform) top
   ctx.fillStyle = giTop;
   ctx.beginPath();
   ctx.moveTo(-12, -18); ctx.lineTo(20, -18);
@@ -283,10 +283,10 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.fillRect(-10, 14, 12, 28);
   ctx.fillRect(6, 14, 12, 28);
 
-  // Arms - Kamehameha pose (hands together, pushed forward)
+  // Arms - Different poses based on animation phase
   ctx.fillStyle = bodyColor;
   if (phase >= 2) {
-    // Arms stretched forward
+    // Arms stretched forward for Kamehameha pose
     ctx.beginPath();
     ctx.moveTo(20, -10); ctx.lineTo(55, -5);
     ctx.lineTo(55, 5); ctx.lineTo(20, 5);
@@ -297,7 +297,7 @@ function drawGoku(x, y, scale, phase, t) {
     ctx.lineTo(55, 2); ctx.lineTo(20, 5);
     ctx.closePath();
     ctx.fill();
-    // Hands cupped
+    // Hands cupped together
     ctx.fillStyle = bodyColor;
     ctx.beginPath();
     ctx.ellipse(58, -2, 8, 10, 0, 0, Math.PI * 2);
@@ -334,11 +334,21 @@ function drawGoku(x, y, scale, phase, t) {
   ctx.restore();
 }
 
+/**
+ * Draw energy aura around Goku
+ * @param x - X position
+ * @param y - Y position (slightly offset upward)
+ * @param scale - Scale factor
+ * @param intensity - Aura intensity (0-1)
+ * @param t - Current time for pulsing effect
+ */
 function drawAura(x, y, scale, intensity, t) {
   ctx.save();
   ctx.translate(x, y);
   const baseR = 60 * scale;
   const pulseR = baseR + Math.sin(t * 8) * 10 * intensity;
+  
+  // Concentric aura rings with gradient
   for (let i = 3; i >= 0; i--) {
     const r = pulseR + i * 20 * intensity;
     const alpha = (0.15 - i * 0.03) * intensity;
@@ -352,7 +362,8 @@ function drawAura(x, y, scale, intensity, t) {
     ctx.ellipse(0, -10, r * 0.7, r, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Electric crackles
+  
+  // Electric crackles around aura
   if (intensity > 0.5) {
     ctx.strokeStyle = 'rgba(0,230,255,' + (0.6 * intensity) + ')';
     ctx.lineWidth = 2;
@@ -372,6 +383,13 @@ function drawAura(x, y, scale, intensity, t) {
   ctx.restore();
 }
 
+/**
+ * Draw the Kamehameha beam across the screen
+ * @param startX - X position where beam originates
+ * @param startY - Y position where beam originates
+ * @param progress - Animation progress (0-1) for beam extension
+ * @param t - Current time for beam pulsing effect
+ */
 function drawBeam(startX, startY, progress, t) {
   const endX = W + 100;
   const beamLength = (endX - startX) * progress;
@@ -379,7 +397,7 @@ function drawBeam(startX, startY, progress, t) {
   const beamY = startY - 2;
   const coreWidth = 18 + Math.sin(t * 12) * 3;
 
-  // Outer glow
+  // Outer glow layers
   for (let i = 4; i >= 0; i--) {
     const w = coreWidth + i * 15;
     const alpha = 0.08 - i * 0.015;
@@ -404,7 +422,7 @@ function drawBeam(startX, startY, progress, t) {
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillRect(startX, beamY - 4, beamLength, 8);
 
-  // Leading edge ball
+  // Leading edge ball for visual punch
   if (progress < 1) {
     const edgeGrad = ctx.createRadialGradient(currentEndX, beamY, 0, currentEndX, beamY, 40);
     edgeGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
@@ -416,19 +434,26 @@ function drawBeam(startX, startY, progress, t) {
     ctx.fill();
   }
 
-  // Spawn beam particles
-  if (Math.random() < 0.5) {
+  // Spawn particles from beam trail
+  if (Math.random() < PARTICLE_CONFIG.beam.spawnChance) {
     beamParticles.push({
       x: startX + Math.random() * beamLength,
       y: beamY + (Math.random() - 0.5) * coreWidth * 2,
       vx: (Math.random() - 0.5) * 2,
       vy: (Math.random() - 0.5) * 4,
-      life: 1, decay: 0.02 + Math.random() * 0.03,
+      life: 1, 
+      decay: PARTICLE_CONFIG.beam.decay.min + Math.random() * (PARTICLE_CONFIG.beam.decay.max - PARTICLE_CONFIG.beam.decay.min),
       size: 1 + Math.random() * 3,
     });
   }
 }
 
+/**
+ * Spawn aura particles for visual effect
+ * @param x - X position
+ * @param y - Y position
+ * @param count - Number of particles to spawn
+ */
 function spawnAuraParticles(x, y, count) {
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
